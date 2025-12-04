@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+dist/
+dist-ssr/
+*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.mp3
+*.m4a
+*.wav
+temp/
+tmp/
+*.log
+
+# Debug and development files
+dev/
+*.html
+deep_debug.py
+download_html.py
+find_description.py
+
+# FFmpeg binaries (platform-specific)
+bin/ffmpeg.exe
+bin/ffprobe.exe
+
+# Keep test files (they're useful for users)
+# Test output files would go here if we had any
