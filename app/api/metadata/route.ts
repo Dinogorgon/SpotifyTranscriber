@@ -36,13 +36,27 @@ export async function GET(request: NextRequest) {
       python.on('close', (code) => {
         if (code === 0) {
           try {
-            const data = JSON.parse(stdout.trim())
+            // Filter out debug messages that might be in stdout
+            const lines = stdout.trim().split('\n')
+            const jsonLines = lines.filter(line => 
+              line.trim().startsWith('{') || line.trim().startsWith('[')
+            )
+            const jsonOutput = jsonLines.length > 0 ? jsonLines.join('\n') : stdout.trim()
+            const data = JSON.parse(jsonOutput)
             resolve(data)
           } catch (error) {
-            reject(new Error(`Failed to parse metadata: ${stdout}`))
+            console.error('Failed to parse metadata JSON:', stdout)
+            reject(new Error(`Failed to parse metadata: ${error instanceof Error ? error.message : 'Invalid JSON'}`))
           }
         } else {
-          reject(new Error(stderr || `Process exited with code ${code}`))
+          // Filter out debug messages from stderr
+          const errorLines = stderr.trim().split('\n').filter(line => 
+            !line.startsWith('DEBUG:') && line.trim().length > 0
+          )
+          const errorMessage = errorLines.length > 0 
+            ? errorLines.join('\n') 
+            : stderr || `Process exited with code ${code}`
+          reject(new Error(errorMessage))
         }
       })
 
