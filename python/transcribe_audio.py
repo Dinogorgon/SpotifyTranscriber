@@ -30,11 +30,17 @@ if __name__ == '__main__':
     def progress_callback(fraction):
         # Print progress as JSON for Next.js to parse
         print(json.dumps({'progress': fraction}), file=sys.stderr)
+        sys.stderr.flush()  # Ensure progress is sent immediately
     
     try:
+        # Send initial progress to indicate transcription started
+        print(json.dumps({'progress': 0.0}), file=sys.stderr)
+        sys.stderr.flush()
+        
         result = transcriber.transcribe(audio_path, progress_callback=progress_callback)
         print(json.dumps(result, ensure_ascii=False))
     except Exception as e:
         print(json.dumps({'error': str(e)}), file=sys.stderr)
+        sys.stderr.flush()
         sys.exit(1)
 

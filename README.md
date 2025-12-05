@@ -7,7 +7,7 @@ A Next.js application that transcribes Spotify podcast episodes using OpenAI Whi
 - 🎙️ **Spotify Integration**: Extract episode metadata and cover images from Spotify URLs
 - 🎵 **Audio Download**: Download podcast audio via RSS feeds (legal workflow)
 - 🤖 **AI Transcription**: Use faster-whisper (fast) or openai-whisper (accurate) for transcription
-- 📝 **AI Summarization**: Generate extractive summaries from transcripts
+- 📝 **AI Summarization**: Generate comprehensive summaries using LLM (OpenAI API or compatible endpoints)
 - 💾 **Multiple Formats**: Export transcripts as TXT, JSON, SRT, or VTT
 - 🎨 **Modern UI**: Beautiful dark-themed interface built with Next.js
 
@@ -50,6 +50,39 @@ npm install
 ```bash
 pip install -r requirements.txt
 ```
+
+4. **Install Ollama (for free LLM summarization - recommended):**
+   - Download and install from [ollama.ai](https://ollama.ai)
+   - After installation, pull a model (choose based on your system):
+     ```bash
+     # Recommended: llama3.2 (3B) - Fast, efficient, handles long contexts
+     ollama pull llama3.2
+     
+     # Better quality (requires 8GB+ RAM): llama3.1:8b
+     ollama pull llama3.1:8b
+     
+     # Alternative: mistral (good balance)
+     ollama pull mistral
+     ```
+   - **Model Recommendations:**
+     - **llama3.2** (default): Fast, ~2GB RAM, handles 128k context, good for most users
+     - **llama3.1:8b**: Better quality, ~5GB RAM, handles 128k context, recommended if you have RAM
+     - **mistral**: Alternative option, ~4GB RAM, good performance
+   - **Why Ollama?**
+     - ✅ Completely free and open source
+     - ✅ No API keys required
+     - ✅ Runs entirely locally (privacy-friendly)
+     - ✅ Handles very long transcripts (128k+ tokens)
+     - ✅ Good language quality and grammar
+   - Set custom model (optional):
+     ```bash
+     # Windows PowerShell
+     $env:OLLAMA_MODEL="llama3.1:8b"
+     
+     # macOS/Linux
+     export OLLAMA_MODEL="llama3.1:8b"
+     ```
+   - **Note**: If Ollama is not installed or not running, the app will automatically fall back to extractive summarization (no setup required)
 
 ## Usage
 

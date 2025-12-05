@@ -1,5 +1,5 @@
 """
-Standalone script to summarize transcription
+Standalone script to summarize transcription using LLM
 Usage: python summarize_transcript.py <transcription_json>
 Input: JSON transcription result from stdin
 Output: Summary text
@@ -11,7 +11,7 @@ import os
 # Add current directory to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from summarizer import Summarizer
+from llm_summarizer import summarize_with_llm
 
 if __name__ == '__main__':
     try:
@@ -19,7 +19,8 @@ if __name__ == '__main__':
         input_data = sys.stdin.read()
         transcription = json.loads(input_data)
         
-        summary = Summarizer.summarize(transcription, max_sentences=15)
+        # Use LLM-based summarization
+        summary = summarize_with_llm(transcription, max_tokens=1500)
         print(summary)
     except Exception as e:
         print(f'Error: {str(e)}', file=sys.stderr)

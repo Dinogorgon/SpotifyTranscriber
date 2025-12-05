@@ -10,7 +10,9 @@ interface ProgressBarProps {
 export default function ProgressBar({ message, percent }: ProgressBarProps) {
   return (
     <div className={styles.progressContainer}>
-      <div className={styles.progressLabel}>{message}</div>
+      <div className={styles.progressLabel}>
+        {message}
+      </div>
       <div className={styles.progressBarWrapper}>
         <div 
           className={styles.progressBarFill} 

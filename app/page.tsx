@@ -6,7 +6,9 @@ import EpisodeInfo from '@/components/EpisodeInfo'
 import Transcript from '@/components/Transcript'
 import Summary from '@/components/Summary'
 import ProgressBar from '@/components/ProgressBar'
+import Toast from '@/components/Toast'
 import { EpisodeMetadata, TranscriptionResult } from '@/lib/types'
+import { useToast } from '@/lib/useToast'
 import styles from './page.module.css'
 
 export default function Home() {
@@ -19,10 +21,18 @@ export default function Home() {
   const [backend, setBackend] = useState<'faster' | 'openai'>('faster')
   const [modelSize, setModelSize] = useState<'tiny' | 'base' | 'small' | 'medium' | 'large'>('base')
   const [showTimestamps, setShowTimestamps] = useState(false)
+  const [inputMode, setInputMode] = useState<'url' | 'file'>('url')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const { toast, showError, showSuccess, showInfo, hideToast } = useToast()
 
   const handleTranscribe = async () => {
-    if (!url.trim()) {
-      alert('Please enter a Spotify URL')
+    if (inputMode === 'url' && !url.trim()) {
+      showError('Please enter a Spotify URL')
+      return
+    }
+
+    if (inputMode === 'file' && !selectedFile) {
+      showError('Please select a file to upload')
       return
     }
 
@@ -30,25 +40,58 @@ export default function Home() {
     setProgress({ message: 'Starting...', percent: 0 })
 
     try {
-      // Step 1: Get metadata
-      setProgress({ message: 'Fetching Spotify metadata...', percent: 10 })
-      const metadataResponse = await fetch(`/api/metadata?spotify_url=${encodeURIComponent(url)}`)
-      if (!metadataResponse.ok) {
-        throw new Error('Failed to fetch metadata')
-      }
-      const metadata = await metadataResponse.json()
-      setEpisodeInfo(metadata)
+      let filePath: string | undefined
 
-      // Step 2: Transcribe
-      setProgress({ message: `Loading ${backend} Whisper model (${modelSize})...`, percent: 30 })
+      if (inputMode === 'file' && selectedFile) {
+        // Step 1: Upload file
+        setProgress({ message: 'Uploading file...', percent: 10 })
+        const formData = new FormData()
+        formData.append('file', selectedFile)
+
+        const uploadResponse = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (!uploadResponse.ok) {
+          const error = await uploadResponse.json()
+          throw new Error(error.error || 'File upload failed')
+        }
+
+        const uploadResult = await uploadResponse.json()
+        filePath = uploadResult.file_path
+
+        // Set basic episode info from file
+        setEpisodeInfo({
+          id: selectedFile.name,
+          title: selectedFile.name.replace(/\.[^/.]+$/, ''),
+          subtitle: `Uploaded file (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`,
+        })
+
+        setProgress({ message: 'File uploaded successfully', percent: 20 })
+      } else {
+        // Step 1: Get metadata for Spotify URL
+        setProgress({ message: 'Fetching Spotify metadata...', percent: 10 })
+        const metadataResponse = await fetch(`/api/metadata?spotify_url=${encodeURIComponent(url)}`)
+        if (!metadataResponse.ok) {
+          throw new Error('Failed to fetch metadata')
+        }
+        const metadata = await metadataResponse.json()
+        setEpisodeInfo(metadata)
+        setProgress({ message: 'Metadata fetched', percent: 20 })
+      }
+
+      // Step 2: Transcribe with streaming progress
+      setProgress({ message: `Transcribing with ${backend} Whisper (${modelSize})...`, percent: 30 })
       
-      const transcribeResponse = await fetch('/api/transcribe', {
+      const transcribeResponse = await fetch('/api/transcribe-stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          spotify_url: url,
+          spotify_url: inputMode === 'url' ? url : undefined,
+          file_path: inputMode === 'file' ? filePath : undefined,
           backend,
           model_size: modelSize,
         }),
@@ -59,23 +102,71 @@ export default function Home() {
         throw new Error(error.error || 'Transcription failed')
       }
 
-      setProgress({ message: 'Generating AI summary...', percent: 95 })
-      const result = await transcribeResponse.json()
+      // Parse Server-Sent Events stream
+      const reader = transcribeResponse.body?.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      if (!reader) {
+        throw new Error('Failed to get response stream')
+      }
+
+      let result: any = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || '' // Keep incomplete line in buffer
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              
+              if (data.type === 'progress') {
+                setProgress({ message: data.message, percent: data.percent })
+              } else if (data.type === 'error') {
+                throw new Error(data.error)
+              } else if (data.type === 'result') {
+                result = data.data
+              }
+            } catch (e) {
+              // Ignore JSON parse errors for non-data lines
+              if (e instanceof SyntaxError) continue
+              throw e
+            }
+          }
+        }
+      }
+
+      if (!result) {
+        throw new Error('No result received from transcription')
+      }
+
       setTranscription(result)
       setSummary(result.summary || '')
-
       setProgress({ message: 'Complete!', percent: 100 })
+      showSuccess('Transcription completed successfully!')
     } catch (error: any) {
-      alert(`Error: ${error.message}`)
-      setProgress({ message: `Error: ${error.message}`, percent: 0 })
+      const errorMessage = error.message || 'An unexpected error occurred'
+      showError(errorMessage)
+      setProgress({ message: `Error: ${errorMessage}`, percent: 0 })
     } finally {
       setLoading(false)
     }
   }
 
   const handleDownloadMP3 = async () => {
-    if (!url.trim()) {
-      alert('Please enter a Spotify URL')
+    if (inputMode === 'url' && !url.trim()) {
+      showError('Please enter a Spotify URL')
+      return
+    }
+
+    if (inputMode === 'file') {
+      showInfo('MP3 download is only available for Spotify URLs')
       return
     }
 
@@ -108,14 +199,23 @@ export default function Home() {
       window.URL.revokeObjectURL(downloadUrl)
       
       setProgress({ message: 'Download complete!', percent: 100 })
+      showSuccess('MP3 downloaded successfully!')
     } catch (error: any) {
-      alert(`Error: ${error.message}`)
-      setProgress({ message: `Error: ${error.message}`, percent: 0 })
+      const errorMessage = error.message || 'Failed to download audio'
+      showError(errorMessage)
+      setProgress({ message: `Error: ${errorMessage}`, percent: 0 })
     }
   }
 
   return (
     <div className={styles.app}>
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={hideToast}
+      />
+      
       <Header 
         url={url}
         setUrl={setUrl}
@@ -125,6 +225,11 @@ export default function Home() {
         setBackend={setBackend}
         modelSize={modelSize}
         setModelSize={setModelSize}
+        inputMode={inputMode}
+        setInputMode={setInputMode}
+        selectedFile={selectedFile}
+        setSelectedFile={setSelectedFile}
+        showError={showError}
       />
       
       <ProgressBar message={progress.message} percent={progress.percent} />
@@ -137,9 +242,10 @@ export default function Home() {
           showTimestamps={showTimestamps}
           setShowTimestamps={setShowTimestamps}
           onDownloadMP3={handleDownloadMP3}
+          showSuccess={showSuccess}
         />
         
-        <Summary summary={summary} />
+        <Summary summary={summary} showSuccess={showSuccess} />
       </div>
     </div>
   )

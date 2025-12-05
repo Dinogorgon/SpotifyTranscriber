@@ -33,6 +33,22 @@ def add_to_path():
         os.environ["PATH"] += os.pathsep + str(INSTALL_DIR)
         print(f"Added {INSTALL_DIR} to PATH")
 
+def get_ffmpeg_path():
+    """Get the path to ffmpeg executable"""
+    # Check system PATH first
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        return ffmpeg_path
+    
+    # Check local bin
+    ffmpeg_exe = INSTALL_DIR / "ffmpeg.exe"
+    if ffmpeg_exe.exists():
+        add_to_path()
+        return str(ffmpeg_exe)
+    
+    # Fallback to just 'ffmpeg' (might work if in PATH)
+    return "ffmpeg"
+
 def install_ffmpeg():
     """Download and install FFmpeg"""
     print("FFmpeg not found. Downloading...")

@@ -71,13 +71,105 @@
   font-size: 14px;
 }
 
-.summaryText p {
-  margin-bottom: 15px;
+.summaryText {
   color: #ffffff;
+  line-height: 1.7;
+}
+
+.summaryText :global(h2) {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1DB954;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.summaryText :global(h2:first-child) {
+  margin-top: 0;
+}
+
+.summaryText :global(h3) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.summaryText :global(p) {
+  margin-bottom: 12px;
+  color: #e0e0e0;
+  line-height: 1.7;
+}
+
+.summaryText :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.summaryText :global(ul),
+.summaryText :global(ol) {
+  margin: 12px 0;
+  padding-left: 24px;
+  color: #e0e0e0;
+}
+
+.summaryText :global(li) {
+  margin-bottom: 8px;
   line-height: 1.6;
 }
 
-.summaryText p:last-child {
+.summaryText :global(strong) {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.markdownH2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #1DB954;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.markdownH2:first-of-type {
+  margin-top: 0;
+}
+
+.markdownH3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 20px;
+  margin-bottom: 10px;
+}
+
+.markdownList {
+  margin: 12px 0;
+  padding-left: 24px;
+  color: #e0e0e0;
+}
+
+.markdownListItem {
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.markdownParagraph {
+  margin-bottom: 12px;
+  color: #e0e0e0;
+  line-height: 1.7;
+}
+
+.markdownParagraph:last-child {
   margin-bottom: 0;
+}
+
+.markdownStrong {
+  color: #ffffff;
+  font-weight: 600;
 }
 

@@ -154,23 +154,18 @@ class SpotifyScraper:
                 
                 if meta_desc and meta_desc.get('content'):
                     description = meta_desc.get('content').strip()
-                    print(f"DEBUG: Found og:description (length: {len(description)})")
-                    if description:
-                        print(f"DEBUG: og:description content: {description[:200]}...")
                 
                 # Try twitter:description as backup
                 if not description:
                     twitter_desc = soup.find('meta', {'name': 'twitter:description'})
                     if twitter_desc and twitter_desc.get('content'):
                         description = twitter_desc.get('content').strip()
-                        print(f"DEBUG: Found twitter:description: {description[:100]}")
                 
                 # Try standard description meta
                 if not description:
                     desc_meta = soup.find('meta', {'name': 'description'})
                     if desc_meta and desc_meta.get('content'):
                         description = desc_meta.get('content').strip()
-                        print(f"DEBUG: Found description meta: {description[:100]}")
                 
                 # Try to find description in visible HTML content (for cases where meta tags don't have it)
                 if not description:
@@ -187,7 +182,6 @@ class SpotifyScraper:
                             text = elem.get_text(strip=True)
                             if len(text) > 100:  # Likely a description if it's long enough
                                 description = text
-                                print(f"DEBUG: Found description in {selector['tag']} tag (length: {len(description)})")
                                 break
                         if description:
                             break
@@ -210,14 +204,12 @@ class SpotifyScraper:
                 
                 if meta_image and meta_image.get('content'):
                     cover_image = meta_image.get('content').strip()
-                    print(f"DEBUG: Found og:image: {cover_image[:80]}...")
                 
                 # Also try twitter:image as backup
                 if not cover_image:
                     twitter_image = soup.find('meta', {'name': 'twitter:image'})
                     if twitter_image and twitter_image.get('content'):
                         cover_image = twitter_image.get('content').strip()
-                        print(f"DEBUG: Found twitter:image: {cover_image[:80]}...")
                 
                 # THEN: Check __NEXT_DATA__ - this has the most complete data
                 next_data = soup.find('script', id='__NEXT_DATA__')
@@ -233,14 +225,12 @@ class SpotifyScraper:
                                     data_obj = state['data']
                                     if 'entity' in data_obj:
                                         full_data = data_obj['entity']
-                                        print(f"DEBUG: Found full_data with keys: {list(full_data.keys())[:10]}")
                     except Exception as e:
                         print(f"Error parsing __NEXT_DATA__: {e}")
                 
                 # Also check for description in ALL script tags (sometimes it's in other JSON structures)
                 # Do this BEFORE checking full_data so we catch it early
                 if not description:
-                    print("DEBUG: Searching all script tags for description...")
                     all_scripts = soup.find_all('script')
                     for script in all_scripts:
                         if script.string and len(script.string) > 500:  # Even smaller scripts might have it
@@ -269,7 +259,6 @@ class SpotifyScraper:
                                             from bs4 import BeautifulSoup as BS
                                             clean_desc = BS(clean_desc, 'html.parser').get_text(separator=' ', strip=True)
                                         description = clean_desc.strip()
-                                        print(f"DEBUG: Found description in script tag via regex pattern '{pattern[:30]}...' (length: {len(description)})")
                                         break
                             if description:
                                 break
@@ -283,7 +272,6 @@ class SpotifyScraper:
                                     longest = max(context_matches, key=len)
                                     clean_desc = longest.replace('\\n', ' ').replace('\\"', '"').replace('\\u201c', '"').replace('\\u201d', '"').replace('\\u2019', "'")
                                     description = clean_desc.strip()
-                                    print(f"DEBUG: Found description via context search (length: {len(description)})")
                                     break
             
             # Fallback to embed page if we didn't get enough data
@@ -308,19 +296,16 @@ class SpotifyScraper:
                         
                         if meta_desc and meta_desc.get('content'):
                             description = meta_desc.get('content').strip()
-                            print(f"DEBUG: Found embed og:description (length: {len(description)})")
                         
                         if not description:
                             twitter_desc = embed_soup.find('meta', {'name': 'twitter:description'})
                             if twitter_desc and twitter_desc.get('content'):
                                 description = twitter_desc.get('content').strip()
-                                print(f"DEBUG: Found embed twitter:description")
                         
                         if not description:
                             desc_meta = embed_soup.find('meta', {'name': 'description'})
                             if desc_meta and desc_meta.get('content'):
                                 description = desc_meta.get('content').strip()
-                                print(f"DEBUG: Found embed description meta")
                     
                     # Try to get cover image from embed page if we don't have it
                     if not cover_image:
@@ -334,7 +319,6 @@ class SpotifyScraper:
                         
                         if embed_meta_image and embed_meta_image.get('content'):
                             cover_image = embed_meta_image.get('content').strip()
-                            print(f"DEBUG: Found embed og:image: {cover_image[:80]}...")
                     
                     # Use embed page soup for further processing if needed
                     if not full_data or not title:
@@ -401,11 +385,9 @@ class SpotifyScraper:
                                     img_url = img.get('url')
                                     if img_url:
                                         cover_image = img_url
-                                        print(f"DEBUG: Found cover_image from visualIdentity: {cover_image[:80]}...")
                                         break
                                 elif isinstance(img, str):
                                     cover_image = img
-                                    print(f"DEBUG: Found cover_image from visualIdentity (string): {cover_image[:80]}...")
                                     break
                     
                     # Path 2: coverArt.sources
@@ -420,11 +402,9 @@ class SpotifyScraper:
                                         img_url = source.get('url')
                                         if img_url:
                                             cover_image = img_url
-                                            print(f"DEBUG: Found cover_image from coverArt: {cover_image[:80]}...")
                                             break
                                     elif isinstance(source, str):
                                         cover_image = source
-                                        print(f"DEBUG: Found cover_image from coverArt (string): {cover_image[:80]}...")
                                         break
                     
                     # Path 3: relatedEntityCoverArt
@@ -436,11 +416,9 @@ class SpotifyScraper:
                                     img_url = art.get('url')
                                     if img_url:
                                         cover_image = img_url
-                                        print(f"DEBUG: Found cover_image from relatedEntityCoverArt: {cover_image[:80]}...")
                                         break
                                 elif isinstance(art, str):
                                     cover_image = art
-                                    print(f"DEBUG: Found cover_image from relatedEntityCoverArt (string): {cover_image[:80]}...")
                                     break
                     
                     # Path 4: show.coverArt
@@ -456,7 +434,6 @@ class SpotifyScraper:
                                             img_url = source.get('url')
                                             if img_url:
                                                 cover_image = img_url
-                                                print(f"DEBUG: Found cover_image from show.coverArt: {cover_image[:80]}...")
                                                 break
                 
                 # Try to get high-res version by modifying URL (for any cover_image found)
@@ -467,39 +444,29 @@ class SpotifyScraper:
                     for size in ['64x64', '160x160', '300x300']:
                         if size in cover_image:
                             cover_image = cover_image.replace(size, '640x640')
-                            print(f"DEBUG: Upgraded image size from {size} to 640x640")
                             break
                     # If no size found but has /image/, try to get larger
                     if '/image/' in cover_image and '640x640' not in cover_image and original_image == cover_image:
                         cover_image = cover_image.replace('/image/', '/image/640x640/')
-                        print(f"DEBUG: Added 640x640 size parameter to image URL")
                 
                 # Extract description - try multiple paths (only if we don't have one from meta tags or script tags)
                 if not description:
                     # Path 1: description or htmlDescription (direct)
                     description = full_data.get('description') or full_data.get('htmlDescription')
-                    if description:
-                        print(f"DEBUG: Found description from full_data.description/htmlDescription (length: {len(description)})")
                     
                     # Path 2: content.description
                     if not description:
                         content = full_data.get('content', {})
                         if isinstance(content, dict):
                             description = content.get('description') or content.get('htmlDescription')
-                            if description:
-                                print(f"DEBUG: Found description from content.description/htmlDescription (length: {len(description)})")
                     
                     # Path 3: episodeDescription
                     if not description:
                         description = full_data.get('episodeDescription')
-                        if description:
-                            print(f"DEBUG: Found description from episodeDescription (length: {len(description)})")
                     
                     # Path 4: Check for 'text' field (sometimes used instead of description)
                     if not description:
                         description = full_data.get('text')
-                        if description:
-                            print(f"DEBUG: Found description from full_data.text (length: {len(description)})")
                     
                     # Path 5: Check nested structures
                     if not description:
@@ -524,7 +491,6 @@ class SpotifyScraper:
                                     break
                             if isinstance(data, str) and data.strip() and len(data.strip()) > 20:
                                 description = data.strip()
-                                print(f"DEBUG: Found description from nested path {path} (length: {len(description)})")
                                 break
                     
                     # Path 6: Search recursively in full_data (more aggressive)
@@ -538,7 +504,6 @@ class SpotifyScraper:
                                     if key in obj:
                                         val = obj[key]
                                         if isinstance(val, str) and val.strip() and len(val.strip()) > 20:
-                                            print(f"DEBUG: Found description recursively at {path}.{key} (length: {len(val.strip())})")
                                             return val.strip()
                                 # Recurse into nested dicts
                                 for key, val in obj.items():
@@ -555,7 +520,6 @@ class SpotifyScraper:
                         found_desc = find_description(full_data)
                         if found_desc:
                             description = found_desc
-                            print(f"DEBUG: Found description via recursive search (length: {len(description)})")
                     
                     # Clean HTML if present
                     if description and isinstance(description, str):
@@ -567,9 +531,6 @@ class SpotifyScraper:
                         # Remove excessive whitespace and escape sequences
                         description = description.replace('\\n', ' ').replace('\\"', '"').replace('\\u201c', '"').replace('\\u201d', '"').replace('\\u2019', "'").replace('\\u2018', "'")
                         description = ' '.join(description.split())
-                        print(f"DEBUG: Cleaned description (final length: {len(description)})")
-                        if description:
-                            print(f"DEBUG: Description preview: {description[:200]}...")
                 
                 # Extract subtitle (show/podcast name)
                 if not subtitle:
@@ -607,12 +568,6 @@ class SpotifyScraper:
                 if full_data:
                     result.update({k: v for k, v in full_data.items() if k not in result})
                 
-                # Debug output
-                print(f"DEBUG: Extracted info - Title: {result['title'][:50]}...")
-                print(f"DEBUG: Description length: {len(description) if description else 0}")
-                print(f"DEBUG: Cover image: {cover_image[:80] if cover_image else 'None'}...")
-                print(f"DEBUG: Subtitle: {subtitle}")
-                print(f"DEBUG: Release date: {release_date}")
                     
                 return result
         except Exception as e:

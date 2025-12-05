@@ -1,15 +1,17 @@
 'use client'
 
+import ReactMarkdown from 'react-markdown'
 import styles from './Summary.module.css'
 
 interface SummaryProps {
   summary: string
+  showSuccess: (message: string) => void
 }
 
-export default function Summary({ summary }: SummaryProps) {
+export default function Summary({ summary, showSuccess }: SummaryProps) {
   const handleCopy = () => {
     navigator.clipboard.writeText(summary)
-    alert('Summary copied to clipboard!')
+    showSuccess('Summary copied to clipboard!')
   }
 
   const handleDownload = () => {
@@ -50,9 +52,19 @@ export default function Summary({ summary }: SummaryProps) {
           </div>
         ) : (
           <div className={styles.summaryText}>
-            {summary.split('\n\n').map((para, idx) => (
-              <p key={idx}>{para}</p>
-            ))}
+            <ReactMarkdown
+              components={{
+                h2: ({node, ...props}) => <h2 className={styles.markdownH2} {...props} />,
+                h3: ({node, ...props}) => <h3 className={styles.markdownH3} {...props} />,
+                ul: ({node, ...props}) => <ul className={styles.markdownList} {...props} />,
+                ol: ({node, ...props}) => <ol className={styles.markdownList} {...props} />,
+                li: ({node, ...props}) => <li className={styles.markdownListItem} {...props} />,
+                p: ({node, ...props}) => <p className={styles.markdownParagraph} {...props} />,
+                strong: ({node, ...props}) => <strong className={styles.markdownStrong} {...props} />,
+              }}
+            >
+              {summary}
+            </ReactMarkdown>
           </div>
         )}
       </div>

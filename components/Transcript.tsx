@@ -9,6 +9,7 @@ interface TranscriptProps {
   showTimestamps: boolean
   setShowTimestamps: (show: boolean) => void
   onDownloadMP3: () => void
+  showSuccess: (message: string) => void
 }
 
 interface Chunk {
@@ -21,6 +22,7 @@ export default function Transcript({
   showTimestamps,
   setShowTimestamps,
   onDownloadMP3,
+  showSuccess,
 }: TranscriptProps) {
   const formattedText = useMemo(() => {
     if (!transcription) return ''
@@ -84,7 +86,7 @@ export default function Transcript({
     }
 
     navigator.clipboard.writeText(textToCopy)
-    alert('Transcript copied to clipboard!')
+    showSuccess('Transcript copied to clipboard!')
   }
 
   const handleDownload = () => {

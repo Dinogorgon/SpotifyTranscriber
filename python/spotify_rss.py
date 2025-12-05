@@ -25,6 +25,8 @@ class SpotifyRSSFetcher:
                 )
             }
         )
+        # Set default timeout for all requests (30 seconds connect, 60 seconds read)
+        self.session.timeout = (30, 60)
 
     def _extract_show_name(self, spotify_info):
         if not spotify_info:
@@ -172,10 +174,34 @@ class SpotifyRSSFetcher:
             raise ValueError("Unable to resolve Spotify show ID")
 
         feed_url = self.SPOTIFEED_TEMPLATE.format(show_id=show_id)
-        response = self.session.get(feed_url, timeout=15)
-        response.raise_for_status()
-
-        return self._parse_feed(response.content)
+        
+        # Retry logic with exponential backoff - shorter timeout for faster failure
+        max_retries = 2  # Reduced retries for faster failure
+        for attempt in range(max_retries):
+            try:
+                # Shorter timeout: 5s connect, 15s read
+                response = self.session.get(feed_url, timeout=(5, 15))
+                response.raise_for_status()
+                return self._parse_feed(response.content)
+            except requests.exceptions.HTTPError as http_error:
+                # Check for 404 specifically - this means the show isn't in spotifeed
+                if http_error.response is not None and http_error.response.status_code == 404:
+                    # Re-raise as HTTPError so caller can catch it
+                    raise http_error
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Failed to fetch RSS feed from Spotify: {str(http_error)}")
+                import time
+                time.sleep(1)  # Shorter backoff
+            except requests.exceptions.Timeout:
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Timeout fetching RSS feed from Spotify after {max_retries} attempts")
+                import time
+                time.sleep(1)  # Shorter backoff
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Failed to fetch RSS feed from Spotify: {str(e)}")
+                import time
+                time.sleep(1)
 
     def _fetch_feed_from_itunes(self, show_name):
         if not show_name:
@@ -186,9 +212,25 @@ class SpotifyRSSFetcher:
             "term": show_name,
             "limit": 5,
         }
-        response = self.session.get("https://itunes.apple.com/search", params=params, timeout=15)
-        response.raise_for_status()
-        data = response.json()
+        
+        # Retry logic with exponential backoff
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self.session.get("https://itunes.apple.com/search", params=params, timeout=(10, 30))
+                response.raise_for_status()
+                data = response.json()
+                break
+            except requests.exceptions.Timeout:
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Timeout fetching iTunes search results after {max_retries} attempts")
+                import time
+                time.sleep(2 ** attempt)
+            except requests.exceptions.RequestException as e:
+                if attempt == max_retries - 1:
+                    raise RuntimeError(f"Failed to fetch iTunes search results: {str(e)}")
+                import time
+                time.sleep(2 ** attempt)
 
         results = data.get("results", [])
         if not results:
@@ -347,29 +389,64 @@ class SpotifyRSSFetcher:
 
         show_id = self.get_show_id(spotify_url, spotify_info)
         show_name = self._extract_show_name(spotify_info)
+        
+        # If we don't have show name but have show_id, try to extract from episode page
+        if not show_name and show_id:
+            try:
+                # Try to get show name from episode page
+                episode_page = self.session.get(spotify_url, timeout=10)
+                if episode_page.status_code == 200:
+                    # Look for show name in page
+                    show_name_match = re.search(r'"showName":"([^"]+)"', episode_page.text)
+                    if show_name_match:
+                        show_name = show_name_match.group(1)
+            except:
+                pass
+        
         if not show_id:
             raise ValueError("Unable to determine Spotify show ID for this episode")
 
+        # Try Spotify RSS feed first
+        feed = None
         try:
             feed = self._fetch_feed_from_spotify(show_id)
         except requests.HTTPError as http_error:
+            # 404 means show not found in spotifeed - fall back to iTunes
             if http_error.response is not None and http_error.response.status_code == 404:
-                feed = self._fetch_feed_from_itunes(show_name)
+                if not show_name:
+                    raise ValueError("Show not found in RSS feed and show name unavailable for iTunes fallback")
+                try:
+                    feed = self._fetch_feed_from_itunes(show_name)
+                except Exception as itunes_error:
+                    raise RuntimeError(f"Show not found in Spotify RSS feed (404) and iTunes fallback failed: {str(itunes_error)}")
             else:
                 raise
-        except requests.RequestException:
-            feed = self._fetch_feed_from_itunes(show_name)
+        except (requests.RequestException, RuntimeError) as e:
+            # For other errors, try iTunes fallback if we have show name
+            error_str = str(e)
+            if "404" in error_str or "Not Found" in error_str:
+                if not show_name:
+                    raise ValueError(f"Show not found in RSS feed ({error_str}) and show name unavailable for iTunes fallback")
+                try:
+                    feed = self._fetch_feed_from_itunes(show_name)
+                except Exception as itunes_error:
+                    raise RuntimeError(f"Show not found in Spotify RSS feed and iTunes fallback failed: {str(itunes_error)}")
+            else:
+                # For non-404 errors, try iTunes as fallback
+                if show_name:
+                    try:
+                        feed = self._fetch_feed_from_itunes(show_name)
+                    except Exception:
+                        # If iTunes also fails, raise original error
+                        raise RuntimeError(f"Failed to fetch RSS feed from Spotify: {error_str}")
+                else:
+                    raise RuntimeError(f"Failed to fetch RSS feed from Spotify: {error_str}")
+        
+        if not feed:
+            raise RuntimeError("Unable to fetch RSS feed from Spotify or iTunes")
 
         entry = self._match_episode_entry(feed, episode_id, episode_title)
         if not entry:
-            # Debug: print available entries for troubleshooting
-            print(f"DEBUG: Could not match episode. Looking for ID: {episode_id}, Title: {episode_title}")
-            print(f"DEBUG: RSS feed has {len(feed.entries)} entries")
-            if feed.entries:
-                print(f"DEBUG: First entry title: {feed.entries[0].get('title', 'N/A')}")
-                print(f"DEBUG: First entry ID: {feed.entries[0].get('id', 'N/A')}")
-                print(f"DEBUG: First entry GUID: {feed.entries[0].get('guid', 'N/A')}")
-            
             # Last resort: try to use the most recent episode if title is very similar
             if episode_title and feed.entries and "Spotify Episode" not in episode_title:
                 target_normalized = self._normalize_text(episode_title)
@@ -388,7 +465,6 @@ class SpotifyRSSFetcher:
                                 best_fallback = feed_entry
                 
                 if best_fallback:
-                    print(f"DEBUG: Using fallback match with {best_overlap*100:.0f}% word overlap")
                     entry = best_fallback
             
             # If still no match and we have an ID, try matching by checking if the ID appears in any entry's content
@@ -404,7 +480,6 @@ class SpotifyRSSFetcher:
                         str(feed_entry.get("summary", "")),
                     ]).lower()
                     if episode_id_lower in entry_text:
-                        print(f"DEBUG: Found episode ID in entry text")
                         entry = feed_entry
                         break
             
