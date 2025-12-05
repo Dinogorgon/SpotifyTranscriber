@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import { join } from 'path'
-import { writeFile, unlink, mkdtemp } from 'fs/promises'
+import { rm, mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import { TranscribeRequest } from '@/lib/types'
 
 const PYTHON_DIR = join(process.cwd(), 'python')
 
 export async function POST(request: NextRequest) {
+  let tempDir: string | null = null
+
   try {
     const body: TranscribeRequest = await request.json()
     const { spotify_url, backend, model_size } = body
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Step 2: Download audio
-    const tempDir = await mkdtemp(join(tmpdir(), 'spotify-transcriber-'))
+    tempDir = await mkdtemp(join(tmpdir(), 'spotify-transcriber-'))
     const audioPath = join(tempDir, 'audio.mp3')
 
     await new Promise<void>((resolve, reject) => {
@@ -148,13 +150,6 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Cleanup
-    try {
-      await unlink(audioPath)
-    } catch {
-      // Ignore cleanup errors
-    }
-
     return NextResponse.json({
       ...transcriptionResult,
       summary: summaryResult,
@@ -165,6 +160,16 @@ export async function POST(request: NextRequest) {
       { error: error.message || 'Transcription failed' },
       { status: 500 }
     )
+  } finally {
+    // Cleanup: Remove entire temporary directory
+    if (tempDir) {
+      try {
+        await rm(tempDir, { recursive: true, force: true })
+      } catch (error) {
+        // Ignore cleanup errors but log them
+        console.error('Failed to cleanup temp directory:', error)
+      }
+    }
   }
 }
 

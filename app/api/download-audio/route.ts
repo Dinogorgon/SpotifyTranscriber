@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import { join } from 'path'
-import { readFile, unlink, mkdtemp } from 'fs/promises'
+import { readFile, rm, mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 
 const PYTHON_DIR = join(process.cwd(), 'python')
@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     )
   }
+
+  let tempDir: string | null = null
 
   try {
     // Get metadata first to get title for filename
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Download audio
-    const tempDir = await mkdtemp(join(tmpdir(), 'spotify-transcriber-'))
+    tempDir = await mkdtemp(join(tmpdir(), 'spotify-transcriber-'))
     const audioPath = join(tempDir, 'audio.mp3')
 
     await new Promise<void>((resolve, reject) => {
@@ -84,13 +86,6 @@ export async function GET(request: NextRequest) {
     const title = metadataResult.title || 'episode'
     const filename = `${title.replace(/[^a-z0-9]/gi, '_')}.mp3`
 
-    // Cleanup
-    try {
-      await unlink(audioPath)
-    } catch {
-      // Ignore cleanup errors
-    }
-
     return new NextResponse(audioBuffer, {
       headers: {
         'Content-Type': 'audio/mpeg',
@@ -103,6 +98,16 @@ export async function GET(request: NextRequest) {
       { error: error.message || 'Failed to download audio' },
       { status: 500 }
     )
+  } finally {
+    // Cleanup: Remove entire temporary directory
+    if (tempDir) {
+      try {
+        await rm(tempDir, { recursive: true, force: true })
+      } catch (error) {
+        // Ignore cleanup errors but log them
+        console.error('Failed to cleanup temp directory:', error)
+      }
+    }
   }
 }
 
