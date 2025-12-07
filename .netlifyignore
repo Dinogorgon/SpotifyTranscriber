@@ -1,0 +1,26 @@
+# Python files (not needed for frontend build)
+requirements.txt
+python/
+backend/
+*.py
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Backend deployment files
+render.yaml
+Dockerfile
+.dockerignore
+fly.toml
+
+# Other files not needed for frontend
+.git/
+node_modules/
+

@@ -1,6 +1,11 @@
 [build]
+  base = "."
   command = "npm run build"
   publish = "out"
+  
+# Disable automatic Python detection
+[build.environment]
+  NETLIFY_USE_PIP = "false"
 
 [[redirects]]
   from = "/*"
