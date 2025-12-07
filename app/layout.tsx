@@ -15,16 +15,6 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {children}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              // Pre-load model on page load
-              if (typeof window !== 'undefined') {
-                fetch('/api/preload-model').catch(() => {});
-              }
-            `,
-          }}
-        />
       </body>
     </html>
   )

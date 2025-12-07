@@ -110,49 +110,123 @@ The application will start at `http://localhost:3000`. Everything runs from a si
 
 ## Architecture
 
-- **Frontend**: Next.js 14+ with TypeScript and App Router
-- **Backend**: Next.js API Routes that orchestrate Python scripts
+- **Frontend**: Next.js 14+ static export deployed to Netlify
+- **Backend**: FastAPI Python service deployed to Render
 - **Python Modules**: Heavy processing (scraping, audio, transcription) handled by Python
-- **Integration**: Python scripts called via child processes from Next.js API routes
+- **Integration**: Frontend communicates with backend via REST API and Server-Sent Events (SSE)
 
 ## Project Structure
 
 ```
 spotify-transcriber/
 ├── app/
-│   ├── api/              # Next.js API routes
 │   ├── page.tsx          # Main application page
 │   ├── layout.tsx        # Root layout
 │   └── globals.css      # Global styles
+├── backend/
+│   ├── main.py          # FastAPI backend application
+│   ├── requirements.txt # Backend Python dependencies
+│   └── render.yaml      # Render deployment configuration
 ├── components/          # React components
 ├── lib/                 # TypeScript utilities
-│   ├── pythonRunner.ts  # Python execution utility
+│   ├── apiClient.ts     # Backend API client
 │   ├── formatConverters.ts  # Format conversion
 │   └── types.ts         # TypeScript types
 ├── python/             # Python modules
 │   ├── spotify_scraper.py
 │   ├── audio_downloader.py
 │   ├── transcriber.py
-│   └── summarizer.py
+│   └── llm_summarizer.py
+├── .github/
+│   └── workflows/
+│       └── keep-alive.yml  # GitHub Actions to keep Render warm
 ├── package.json
-├── requirements.txt
+├── requirements.txt     # Python dependencies (for local dev)
+├── netlify.toml         # Netlify deployment configuration
 └── README.md
 ```
 
 ## Development
 
+### Local Development Setup
+
+1. **Start the backend** (in one terminal):
+```bash
+cd backend
+pip install -r requirements.txt
+python main.py
+```
+The backend will run on `http://localhost:8000`
+
+2. **Start the frontend** (in another terminal):
+```bash
+npm install
+npm run dev
+```
+The frontend will run on `http://localhost:3000` and connect to the backend automatically.
+
 ### Build for Production
 
 ```bash
 npm run build
-npm start
 ```
+This creates a static export in the `out/` directory ready for Netlify deployment.
 
 ### Run Linter
 
 ```bash
 npm run lint
 ```
+
+## Deployment
+
+### Deploy Backend to Render
+
+1. **Create a Render account** at [render.com](https://render.com)
+2. **Create a new Web Service**:
+   - Connect your GitHub repository
+   - Select the `backend/` directory as the root
+   - Build command: `pip install -r requirements.txt`
+   - Start command: `cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
+   - Environment: Python 3
+3. **Get your Render backend URL** (e.g., `https://your-app.onrender.com`)
+4. **Set environment variables** (if needed):
+   - `FRONTEND_URL`: Your Netlify frontend URL (for CORS)
+
+### Deploy Frontend to Netlify
+
+1. **Create a Netlify account** at [netlify.com](https://netlify.com)
+2. **Create a new site**:
+   - Connect your GitHub repository
+   - Build command: `npm run build`
+   - Publish directory: `out`
+3. **Set environment variable**:
+   - `NEXT_PUBLIC_BACKEND_URL`: Your Render backend URL (e.g., `https://your-app.onrender.com`)
+4. **Deploy**: Netlify will automatically deploy on every push to your main branch
+
+### Set Up GitHub Actions Keep-Alive
+
+1. **Add GitHub Secret** (optional):
+   - Go to your repository Settings → Secrets and variables → Actions
+   - Add a secret named `RENDER_URL` with your Render backend URL
+   - Or edit `.github/workflows/keep-alive.yml` and replace `your-backend.onrender.com` with your actual URL
+2. **Enable GitHub Actions**:
+   - The workflow will automatically run every 10 minutes to keep Render warm
+   - You can also manually trigger it from the Actions tab
+
+### Custom Domain Setup
+
+**Netlify:**
+- Go to Site settings → Domain management
+- Add your custom domain (e.g., `spotifytranscriber.name.me`)
+- Follow DNS instructions
+- SSL is automatic
+
+**Render:**
+- Go to your service settings → Custom Domains
+- Add your custom domain
+- Follow DNS instructions
+- SSL is automatic
 
 ## Troubleshooting
 

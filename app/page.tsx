@@ -9,6 +9,7 @@ import ProgressBar from '@/components/ProgressBar'
 import Toast from '@/components/Toast'
 import { EpisodeMetadata, TranscriptionResult } from '@/lib/types'
 import { useToast } from '@/lib/useToast'
+import { apiClient } from '@/lib/apiClient'
 import styles from './page.module.css'
 
 export default function Home() {
@@ -45,20 +46,7 @@ export default function Home() {
       if (inputMode === 'file' && selectedFile) {
         // Step 1: Upload file
         setProgress({ message: 'Uploading file...', percent: 10 })
-        const formData = new FormData()
-        formData.append('file', selectedFile)
-
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (!uploadResponse.ok) {
-          const error = await uploadResponse.json()
-          throw new Error(error.error || 'File upload failed')
-        }
-
-        const uploadResult = await uploadResponse.json()
+        const uploadResult = await apiClient.uploadFile(selectedFile)
         filePath = uploadResult.file_path
 
         // Set basic episode info from file
@@ -72,11 +60,7 @@ export default function Home() {
       } else {
         // Step 1: Get metadata for Spotify URL
         setProgress({ message: 'Fetching Spotify metadata...', percent: 10 })
-        const metadataResponse = await fetch(`/api/metadata?spotify_url=${encodeURIComponent(url)}`)
-        if (!metadataResponse.ok) {
-          throw new Error('Failed to fetch metadata')
-        }
-        const metadata = await metadataResponse.json()
+        const metadata = await apiClient.getMetadata(url)
         setEpisodeInfo(metadata)
         setProgress({ message: 'Metadata fetched', percent: 20 })
       }
@@ -84,23 +68,12 @@ export default function Home() {
       // Step 2: Transcribe with streaming progress
       setProgress({ message: `Transcribing with ${backend} Whisper (${modelSize})...`, percent: 30 })
       
-      const transcribeResponse = await fetch('/api/transcribe-stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          spotify_url: inputMode === 'url' ? url : undefined,
-          file_path: inputMode === 'file' ? filePath : undefined,
-          backend,
-          model_size: modelSize,
-        }),
+      const transcribeResponse = await apiClient.transcribeStream({
+        spotify_url: inputMode === 'url' ? url : undefined,
+        file_path: inputMode === 'file' ? filePath : undefined,
+        backend,
+        model_size: modelSize,
       })
-
-      if (!transcribeResponse.ok) {
-        const error = await transcribeResponse.json()
-        throw new Error(error.error || 'Transcription failed')
-      }
 
       // Parse Server-Sent Events stream
       const reader = transcribeResponse.body?.getReader()
