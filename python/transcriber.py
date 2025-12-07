@@ -21,6 +21,9 @@ except ImportError:
 # Global model cache to avoid reloading models
 _model_cache = {}
 
+# Check if we should use caching (disable on Render free tier to save memory)
+USE_MODEL_CACHE = os.getenv("USE_MODEL_CACHE", "true").lower() == "true"
+
 
 def convert_to_mp3(input_path, output_path=None):
     """
@@ -143,7 +146,7 @@ def convert_to_mp3(input_path, output_path=None):
 
 
 class Transcriber:
-    def __init__(self, model_size="base", backend="faster", device="auto", compute_type="int8_float32"):
+    def __init__(self, model_size="base", backend="faster", device="auto", compute_type="int8"):
         """
         Initialize transcriber with selected backend.
         Uses model caching to avoid reloading models on subsequent requests.
@@ -162,16 +165,17 @@ class Transcriber:
         # Create cache key
         cache_key = f"{self.backend}_{self.model_size}_{self.device}_{self.compute_type}"
         
-        # Check if model is already cached
-        if cache_key in _model_cache:
+        # Check if model is already cached (only if caching is enabled)
+        if USE_MODEL_CACHE and cache_key in _model_cache:
             self.model = _model_cache[cache_key]
             print(f"Using cached model: {cache_key}")
         else:
             self.model = None
             self._load_model()
-            # Cache the model
-            _model_cache[cache_key] = self.model
-            print(f"Cached model: {cache_key}")
+            # Cache the model only if caching is enabled
+            if USE_MODEL_CACHE:
+                _model_cache[cache_key] = self.model
+                print(f"Cached model: {cache_key}")
 
     def _load_model(self):
         """Load Whisper model based on selected backend."""
@@ -189,6 +193,20 @@ class Transcriber:
                 print(f"Loading openai-whisper model: {self.model_size}...")
                 self.model = whisper.load_model(self.model_size)
             print("Model loaded successfully!")
+
+    def cleanup(self):
+        """Clear model from memory (essential for memory-constrained environments)"""
+        if hasattr(self, 'model') and self.model:
+            # Remove from cache if cached
+            cache_key = f"{self.backend}_{self.model_size}_{self.device}_{self.compute_type}"
+            if cache_key in _model_cache:
+                del _model_cache[cache_key]
+            del self.model
+            self.model = None
+        
+        # Force garbage collection
+        import gc
+        gc.collect()
 
     @staticmethod
     def _get_duration(audio_path):

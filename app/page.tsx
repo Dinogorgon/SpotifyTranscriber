@@ -20,7 +20,7 @@ export default function Home() {
   const [progress, setProgress] = useState({ message: 'Ready', percent: 0 })
   const [url, setUrl] = useState('')
   const [backend, setBackend] = useState<'faster' | 'openai'>('faster')
-  const [modelSize, setModelSize] = useState<'tiny' | 'base' | 'small' | 'medium' | 'large'>('base')
+  const [modelSize, setModelSize] = useState<'tiny' | 'base' | 'small' | 'medium' | 'large'>('tiny')
   const [showTimestamps, setShowTimestamps] = useState(false)
   const [inputMode, setInputMode] = useState<'url' | 'file'>('url')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -125,8 +125,18 @@ export default function Home() {
       showSuccess('Transcription completed successfully!')
     } catch (error: any) {
       const errorMessage = error.message || 'An unexpected error occurred'
-      showError(errorMessage)
-      setProgress({ message: `Error: ${errorMessage}`, percent: 0 })
+      const isMemoryError = /memory|512mb|out of memory|memory limit/i.test(errorMessage)
+      
+      if (isMemoryError) {
+        showError('Server memory exceeded. Please try:\n1) Using a smaller model (tiny or base)\n2) A shorter audio file/episode\n3) Try again in a few moments')
+        setProgress({ 
+          message: 'Memory limit reached - try a smaller model or shorter audio', 
+          percent: 0 
+        })
+      } else {
+        showError(errorMessage)
+        setProgress({ message: `Error: ${errorMessage}`, percent: 0 })
+      }
     } finally {
       setLoading(false)
     }

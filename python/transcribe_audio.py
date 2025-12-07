@@ -39,7 +39,15 @@ if __name__ == '__main__':
         
         result = transcriber.transcribe(audio_path, progress_callback=progress_callback)
         print(json.dumps(result, ensure_ascii=False))
+        
+        # Cleanup memory immediately after transcription
+        transcriber.cleanup()
     except Exception as e:
+        # Cleanup even on error
+        try:
+            transcriber.cleanup()
+        except:
+            pass
         print(json.dumps({'error': str(e)}), file=sys.stderr)
         sys.stderr.flush()
         sys.exit(1)

@@ -58,6 +58,7 @@
   flex: 1;
   line-height: 1.5;
   word-wrap: break-word;
+  white-space: pre-line; /* Preserves line breaks */
 }
 
 .toastClose {

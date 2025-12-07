@@ -2,5 +2,15 @@ services:
   - type: web
     name: spotify-transcriber-backend
     env: python
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: USE_MODEL_CACHE
+        value: "false"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: PYTHONPATH
+        value: "/opt/render/project/src:/opt/render/project/src/backend"
+    healthCheckPath: /health
+    autoDeploy: true

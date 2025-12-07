@@ -119,11 +119,11 @@ def summarize_with_llm(transcription_result, max_tokens=2000):
         return Summarizer.summarize(transcription_result, max_sentences=15)
     
     # Truncate if too long (llama3.2 has 128k context, but we'll be conservative)
-    # Keep up to 200k characters to handle very long transcripts
+    # Keep up to 100k characters to handle very long transcripts (reduced for memory efficiency)
     original_length = len(text)
-    if len(text) > 200000:
+    if len(text) > 100000:
         # For very long transcripts, take beginning and end
-        text = text[:100000] + "\n\n[... middle content truncated ...]\n\n" + text[-100000:]
+        text = text[:50000] + "\n\n[... middle content truncated ...]\n\n" + text[-50000:]
     
     try:
         # Use Ollama API - format: system prompt + user prompt

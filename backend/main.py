@@ -412,12 +412,14 @@ async def transcribe_stream(request: TranscribeRequest):
             )
             
             stdout_data = ""
+            stderr_data = ""  # Collect stderr for error analysis
             last_progress_time = datetime.now()
             
             # Read stderr for progress updates
             for line in iter(transcribe_process.stderr.readline, ''):
                 if not line:
                     break
+                stderr_data += line  # Collect stderr output
                 line = line.strip()
                 if line:
                     try:
@@ -430,7 +432,11 @@ async def transcribe_stream(request: TranscribeRequest):
                             last_progress_time = datetime.now()
                         elif parsed.get('error'):
                             transcribe_process.kill()
-                            yield send_error(parsed['error'])
+                            error_msg = parsed['error']
+                            # Check if it's a memory error
+                            if any(keyword in error_msg.lower() for keyword in ['out of memory', 'memoryerror', '512mb', 'ran out of memory', 'memory limit']):
+                                error_msg = "Server memory exceeded. Please try: 1) Using a smaller model (tiny or base), 2) A shorter audio file/episode, or 3) Try again in a few moments."
+                            yield send_error(error_msg)
                             return
                     except:
                         pass
@@ -444,7 +450,28 @@ async def transcribe_stream(request: TranscribeRequest):
             return_code = transcribe_process.wait(timeout=1800)
             
             if return_code != 0:
+                # Check stderr for memory errors
                 error_message = "Transcription failed"
+                if stderr_data:
+                    error_lower = stderr_data.lower()
+                    if any(keyword in error_lower for keyword in ['out of memory', 'memoryerror', '512mb', 'ran out of memory', 'memory limit']):
+                        error_message = "Server memory exceeded. Please try: 1) Using a smaller model (tiny or base), 2) A shorter audio file/episode, or 3) Try again in a few moments."
+                    else:
+                        # Try to extract error from stderr
+                        error_lines = stderr_data.strip().split('\n')
+                        error_json = None
+                        for line in error_lines:
+                            try:
+                                parsed = json.loads(line.strip())
+                                if parsed.get('error'):
+                                    error_json = parsed['error']
+                                    break
+                            except:
+                                continue
+                        if error_json:
+                            error_message = error_json
+                        elif error_lines:
+                            error_message = error_lines[-1] if len(error_lines[-1]) < 200 else error_lines[-1][:200]
                 yield send_error(error_message)
                 return
             
@@ -457,6 +484,13 @@ async def transcribe_stream(request: TranscribeRequest):
             except json.JSONDecodeError as e:
                 yield send_error(f"Failed to parse transcription: {str(e)}")
                 return
+            
+            # Clean up audio file immediately after transcription to free disk/memory
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.remove(audio_path)
+                except:
+                    pass
             
             # Step 4: Summarize
             yield send_progress("Generating AI summary...", 95)
@@ -494,14 +528,33 @@ async def transcribe_stream(request: TranscribeRequest):
         except subprocess.TimeoutExpired:
             yield send_error("Process timeout: The operation took too long")
         except Exception as e:
-            yield send_error(f"Transcription failed: {str(e)}")
+            error_str = str(e).lower()
+            error_message = str(e)
+            
+            # Detect memory-related errors
+            if any(keyword in error_str for keyword in ['out of memory', 'memoryerror', '512mb', 'ran out of memory', 'memory limit']):
+                error_message = "Server memory exceeded. Please try: 1) Using a smaller model (tiny or base), 2) A shorter audio file/episode, or 3) Try again in a few moments."
+            else:
+                error_message = f"Transcription failed: {error_message}"
+            yield send_error(error_message)
         finally:
-            # Cleanup temporary directory
+            # Cleanup temporary directory and files immediately
             if temp_dir and os.path.exists(temp_dir):
                 try:
+                    # Remove all files first
+                    for root, dirs, files in os.walk(temp_dir):
+                        for f in files:
+                            try:
+                                os.remove(os.path.join(root, f))
+                            except:
+                                pass
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 except:
                     pass
+            
+            # Force garbage collection after cleanup
+            import gc
+            gc.collect()
     
     return StreamingResponse(
         generate_stream(),
