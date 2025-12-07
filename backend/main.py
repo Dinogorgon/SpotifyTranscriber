@@ -14,8 +14,9 @@ from datetime import datetime
 from typing import Optional
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
+import requests
 
 # Add python directory to path so we can import modules
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -140,6 +141,134 @@ async def upload_file(file: UploadFile = File(...)):
         except:
             pass
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
+
+
+@app.get("/api/download-audio")
+async def download_audio(spotify_url: str):
+    """Download audio file from Spotify and return as MP3"""
+    if not spotify_url:
+        raise HTTPException(status_code=400, detail="spotify_url parameter is required")
+    
+    temp_dir = None
+    audio_path = None
+    
+    try:
+        # Step 1: Get metadata for filename
+        metadata_result = subprocess.run(
+            ["python", str(PYTHON_DIR / "get_metadata.py"), spotify_url],
+            cwd=str(PYTHON_DIR),
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        if metadata_result.returncode != 0:
+            error_lines = metadata_result.stderr.strip().split('\n')
+            error_lines = [line for line in error_lines if not line.startswith('DEBUG:') and line.strip()]
+            error_message = '\n'.join(error_lines) if error_lines else "Failed to get metadata"
+            raise HTTPException(status_code=500, detail=error_message)
+        
+        # Parse metadata
+        lines = metadata_result.stdout.strip().split('\n')
+        json_lines = [line for line in lines if line.strip().startswith('{') or line.strip().startswith('[')]
+        json_output = json_lines[0] if json_lines else metadata_result.stdout.strip()
+        
+        try:
+            metadata = json.loads(json_output)
+            title = metadata.get('title', 'episode')
+        except json.JSONDecodeError:
+            title = 'episode'
+        
+        # Step 2: Download audio
+        temp_dir = tempfile.mkdtemp(prefix='spotify-transcriber-download-')
+        audio_path = os.path.join(temp_dir, 'audio.mp3')
+        
+        download_result = subprocess.run(
+            ["python", str(PYTHON_DIR / "download_audio.py"), spotify_url, audio_path],
+            cwd=str(PYTHON_DIR),
+            capture_output=True,
+            text=True,
+            timeout=300
+        )
+        
+        if download_result.returncode != 0:
+            error_lines = download_result.stderr.strip().split('\n')
+            error_json = None
+            for line in error_lines:
+                try:
+                    parsed = json.loads(line.strip())
+                    if parsed.get('error'):
+                        error_json = parsed['error']
+                        break
+                except:
+                    continue
+            
+            error_message = error_json if error_json else (download_result.stderr or "Failed to download audio")
+            raise HTTPException(status_code=500, detail=error_message)
+        
+        # Step 3: Generate filename
+        filename = f"{title.replace('/', '_').replace('\\', '_')[:100]}.mp3"
+        # Remove any invalid filename characters
+        filename = ''.join(c for c in filename if c.isalnum() or c in '._- ')
+        
+        # Step 4: Return file
+        return FileResponse(
+            audio_path,
+            media_type='audio/mpeg',
+            filename=filename,
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+        
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Download timeout")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download audio: {str(e)}")
+    finally:
+        # Note: FileResponse will handle file cleanup after sending
+        # But we should still clean up if there was an error
+        if temp_dir and os.path.exists(temp_dir) and (not audio_path or not os.path.exists(audio_path)):
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            except:
+                pass
+
+
+@app.get("/api/proxy-image")
+async def proxy_image(image_url: str):
+    """Proxy image from external URL to avoid CORS issues"""
+    if not image_url:
+        raise HTTPException(status_code=400, detail="image_url parameter is required")
+    
+    try:
+        response = requests.get(
+            image_url,
+            headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://open.spotify.com/',
+            },
+            timeout=10
+        )
+        
+        response.raise_for_status()
+        
+        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        
+        return Response(
+            content=response.content,
+            media_type=content_type,
+            headers={
+                'Cache-Control': 'public, max-age=31536000, immutable',
+            }
+        )
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch image: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image proxy error: {str(e)}")
 
 
 async def read_subprocess_output(process, queue):

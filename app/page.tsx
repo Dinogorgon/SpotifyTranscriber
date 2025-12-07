@@ -145,7 +145,7 @@ export default function Home() {
 
     try {
       setProgress({ message: 'Downloading MP3...', percent: 0 })
-      const response = await fetch(`/api/download-audio?spotify_url=${encodeURIComponent(url)}`)
+      const response = await apiClient.downloadAudio(url)
       
       if (!response.ok) {
         throw new Error('Failed to download audio')

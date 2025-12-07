@@ -80,5 +80,24 @@ export const apiClient = {
 
     return response
   },
+
+  /**
+   * Download audio file from Spotify
+   */
+  async downloadAudio(spotifyUrl: string): Promise<Response> {
+    const response = await fetch(`${BACKEND_URL}/api/download-audio?spotify_url=${encodeURIComponent(spotifyUrl)}`)
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.detail || error.error || 'Failed to download audio')
+    }
+    return response
+  },
+
+  /**
+   * Get proxy URL for an image to avoid CORS issues
+   */
+  proxyImage(imageUrl: string): string {
+    return `${BACKEND_URL}/api/proxy-image?image_url=${encodeURIComponent(imageUrl)}`
+  },
 }
 

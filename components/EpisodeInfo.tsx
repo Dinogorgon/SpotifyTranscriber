@@ -1,6 +1,7 @@
 'use client'
 
 import { EpisodeMetadata } from '@/lib/types'
+import { apiClient } from '@/lib/apiClient'
 import styles from './EpisodeInfo.module.css'
 
 interface EpisodeInfoProps {
@@ -41,7 +42,7 @@ export default function EpisodeInfo({ info }: EpisodeInfoProps) {
             <div className={styles.coverImageContainer}>
               {info.cover_image ? (
                 <img 
-                  src={`/api/proxy-image?image_url=${encodeURIComponent(info.cover_image)}`}
+                  src={apiClient.proxyImage(info.cover_image)}
                   alt={info.title || 'Episode cover'}
                   className={styles.episodeCover}
                   onError={(e) => {
