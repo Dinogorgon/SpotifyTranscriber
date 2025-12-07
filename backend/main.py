@@ -16,7 +16,7 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
-import requests
+import httpx
 
 # Add python directory to path so we can import modules
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -45,7 +45,7 @@ class TranscribeRequest(BaseModel):
     spotify_url: Optional[str] = None
     file_path: Optional[str] = None
     backend: str = "faster"
-    model_size: str = "base"
+    model_size: str = "tiny"
 
 
 @app.get("/health")
@@ -245,29 +245,29 @@ async def proxy_image(image_url: str):
         raise HTTPException(status_code=400, detail="image_url parameter is required")
     
     try:
-        response = requests.get(
-            image_url,
-            headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': 'https://open.spotify.com/',
-            },
-            timeout=10
-        )
-        
-        response.raise_for_status()
-        
-        content_type = response.headers.get('Content-Type', 'image/jpeg')
-        
-        return Response(
-            content=response.content,
-            media_type=content_type,
-            headers={
-                'Cache-Control': 'public, max-age=31536000, immutable',
-            }
-        )
-        
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch image: {str(e)}")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                image_url,
+                headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Referer': 'https://open.spotify.com/',
+                },
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            return Response(
+                content=response.content,
+                media_type=response.headers.get('Content-Type', 'image/jpeg'),
+                headers={
+                    'Cache-Control': 'public, max-age=31536000, immutable',
+                }
+            )
+    
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Image proxy timeout")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"Failed to fetch image: {e.response.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Image proxy error: {str(e)}")
 

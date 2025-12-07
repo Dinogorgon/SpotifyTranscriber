@@ -125,12 +125,21 @@ export default function Home() {
       showSuccess('Transcription completed successfully!')
     } catch (error: any) {
       const errorMessage = error.message || 'An unexpected error occurred'
-      const isMemoryError = /memory|512mb|out of memory|memory limit/i.test(errorMessage)
+      // Check for memory-related errors or connection failures that might indicate memory issues
+      const isMemoryError = /memory|512mb|out of memory|memory limit|connection failed.*memory|server.*memory/i.test(errorMessage)
+      const isConnectionError = /connection failed|failed to fetch|network error/i.test(errorMessage)
       
-      if (isMemoryError) {
+      if (isMemoryError || (isConnectionError && errorMessage.includes('memory'))) {
         showError('Server memory exceeded. Please try:\n1) Using a smaller model (tiny or base)\n2) A shorter audio file/episode\n3) Try again in a few moments')
         setProgress({ 
           message: 'Memory limit reached - try a smaller model or shorter audio', 
+          percent: 0 
+        })
+      } else if (isConnectionError) {
+        // Generic connection error - suggest memory as possible cause
+        showError('Connection to server failed. This may be due to:\n1) Server memory limit exceeded - try a smaller model (tiny or base)\n2) Network issues - please try again\n3) Server temporarily unavailable')
+        setProgress({ 
+          message: 'Connection failed - try a smaller model or try again', 
           percent: 0 
         })
       } else {
