@@ -3,7 +3,7 @@
   command = "npm run build"
   publish = "out"
   
-# Disable automatic Python detection
+# Disable automatic Python detection (requirements.txt is now python-requirements.txt)
 [build.environment]
   NETLIFY_USE_PIP = "false"
 

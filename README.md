@@ -48,7 +48,7 @@ npm install
 
 3. **Install Python dependencies:**
 ```bash
-pip install -r requirements.txt
+pip install -r python-requirements.txt
 ```
 
 4. **Install Ollama (for free LLM summarization - recommended):**
@@ -141,7 +141,7 @@ spotify-transcriber/
 │   └── workflows/
 │       └── keep-alive.yml  # GitHub Actions to keep Render warm
 ├── package.json
-├── requirements.txt     # Python dependencies (for local dev)
+├── python-requirements.txt     # Python dependencies (for local dev)
 ├── netlify.toml         # Netlify deployment configuration
 └── README.md
 ```

@@ -38,7 +38,7 @@ ffmpeg -version
 ### Step 1: Install Python Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r python-requirements.txt
 ```
 
 ### Step 2: Run the Application

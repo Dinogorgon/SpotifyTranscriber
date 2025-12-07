@@ -1,5 +1,5 @@
 # Python files (not needed for frontend build)
-requirements.txt
+python-requirements.txt
 python/
 backend/
 *.py
