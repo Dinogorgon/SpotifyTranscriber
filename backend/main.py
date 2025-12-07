@@ -28,6 +28,7 @@ app = FastAPI(title="Spotify Transcriber API")
 # CORS configuration - allow Netlify and localhost
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"https://.*\.netlify\.app",
     allow_origins=[
         os.getenv("FRONTEND_URL", "http://localhost:3000"),
         "https://spotifytranscriber.name.me",
